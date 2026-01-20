@@ -18,7 +18,9 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.16.0",
     "node-fetch": "^3.3.2",
-    "rss-parser": "^3.13.0"
+    "rss-parser": "^3.13.0",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
