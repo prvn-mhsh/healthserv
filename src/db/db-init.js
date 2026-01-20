@@ -39,12 +39,8 @@ async function initDB() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
-  console.log('DB Initialized: tables ready');
   await connection.end();
+  console.log('DB Initialized: tables ready');
 }
 
-// Run when this file is executed
-initDB().catch(err => {
-  console.error('DB init error:', err);
-  process.exit(1);
-});
+module.exports = initDB;
