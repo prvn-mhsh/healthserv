@@ -1,0 +1,165 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Misc Service - Articles API",
+    "version": "1.0.0",
+    "description": "Articles module for doctors, admins, and users"
+  },
+  "servers": [
+    { "url": "http://localhost:4004" }
+  ],
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "tags": [
+    { "name": "Doctor", "description": "Endpoints for Doctors to create, update, and submit articles" },
+    { "name": "Admin", "description": "Endpoints for Admin to approve, reject, and delist articles" },
+    { "name": "User", "description": "Endpoints for Users to view and report articles" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Article": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "content": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": "string", "enum": ["DRAFT", "PENDING_APPROVAL", "PUBLISHED", "REJECTED", "DELISTED"] }
+        }
+      },
+      "ArticleList": { "type": "array", "items": { "$ref": "#/components/schemas/Article" } },
+      "ReportRequest": { "type": "object", "properties": { "notes": { "type": "string" } } },
+      "RejectRequest": { "type": "object", "properties": { "reason": { "type": "string" } } }
+    }
+  },
+  "paths": {
+    "/doctor/articles": {
+      "post": {
+        "tags": ["Doctor"],
+        "summary": "Create article draft",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "summary", "content"],
+                "properties": {
+                  "title": { "type": "string", "example": "Benefits of Morning Walk" },
+                  "summary": { "type": "string", "example": "Short health benefits of walking daily." },
+                  "content": { "type": "string", "example": "Walking daily improves heart health and mental well-being." },
+                  "tags": { "type": "array", "items": { "type": "string" }, "example": ["fitness", "cardiology"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Article created successfully",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "articleId": { "type": "integer", "example": 12 }, "status": { "type": "string", "example": "DRAFT" } } } } }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden - Not a doctor" },
+          "500": { "description": "Failed to create article" }
+        }
+      }
+    },
+    "/doctor/articles/{id}": {
+      "put": {
+        "tags": ["Doctor"],
+        "summary": "Update article (only draft)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "title": { "type": "string" }, "summary": { "type": "string" }, "content": { "type": "string" }, "tags": { "type": "array", "items": { "type": "string" } } } }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Draft updated" },
+          "403": { "description": "Cannot update article (not owner or not draft)" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/doctor/articles/{id}/submit": {
+      "post": {
+        "tags": ["Doctor"],
+        "summary": "Submit article for approval",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Submitted for approval" }, "403": { "description": "Cannot submit article (not owner or wrong status)" } }
+      }
+    },
+    "/admin/articles/pending": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "View pending articles",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "List of pending articles", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleList" } } } } }
+      }
+    },
+    "/admin/articles/{id}/approve": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Approve article",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Article approved" } }
+      }
+    },
+    "/admin/articles/{id}/reject": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Reject article",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RejectRequest" } } } },
+        "responses": { "200": { "description": "Article rejected" } }
+      }
+    },
+    "/admin/articles/{id}/delist": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Delist article",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "reason": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Article delisted" } }
+      }
+    },
+    "/patient/articles": {
+      "get": {
+        "tags": ["User"],
+        "summary": "View published articles",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "tag", "in": "query", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Published articles", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleList" } } } } }
+      }
+    },
+    "/patient/articles/{id}/report": {
+      "post": {
+        "tags": ["User"],
+        "summary": "Report article abuse",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReportRequest" } } } },
+        "responses": { "201": { "description": "Article reported" } }
+      }
+    }
+  }
+}

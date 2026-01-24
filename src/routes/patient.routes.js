@@ -1,21 +1,20 @@
 const router = require('express').Router();
-const repo = require('../repositories/article.repo');
+const patientController = require('../controllers/patient.controller');
 
-router.get('/articles', async (req, res) => {
-  const [rows] = await repo.getPublishedArticles(req.query);
-  res.json(rows);
-});
+const { authenticate, requireRole } = require('../middleware/auth');
+
+router.get(
+  '/articles',
+  authenticate,
+  requireRole(['USER']),
+  patientController.getPublishedArticles
+);
 
 router.post(
   '/articles/:id/report',
-  async (req, res) => {
-    await require('../db').execute(
-      `INSERT INTO article_reports (article_id, reported_by, notes)
-       VALUES (?, ?, ?)`,
-      [req.params.id, req.body.userId, req.body.notes]
-    );
-    res.status(201).json({ message: 'Reported' });
-  }
+  authenticate,
+  requireRole(['USER']),
+  patientController.reportArticle
 );
 
 module.exports = router;

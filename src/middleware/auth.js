@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
 
+const roleMap = {
+  1: 'ADMIN' // Admin uses role_id
+};
+
 exports.authenticate = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -9,15 +13,26 @@ exports.authenticate = (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Normalize token
+    // Determine role
+    let role = decoded.type
+      ? decoded.type.toUpperCase()           // Doctor/Patient
+      : decoded.role_id
+      ? roleMap[decoded.role_id]             // Admin
+      : null;
+
+    if (!role) {
+      return res.status(401).json({ message: 'Invalid token role' });
+    }
+
     req.user = {
-      userId: decoded.id,                 // numeric ID
-      role: decoded.type.toUpperCase(),   // doctor → DOCTOR
-      phone: decoded.phone
+      userId: decoded.id,
+      role,
+      phone: decoded.phone || null
     };
 
     next();
   } catch (err) {
+    console.error(err);
     return res.status(401).json({ message: 'Invalid token' });
   }
 };
