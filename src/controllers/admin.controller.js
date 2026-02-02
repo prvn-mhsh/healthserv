@@ -1,7 +1,107 @@
 const db = require('../db/mysql');
+const repo = require('../repositories/article.repo');
 
 /**
- * GET PENDING ARTICLES
+ * GET ARTICLES (FILTERED + PAGINATED)
+ * Filters: status, doctorName, startDate, endDate
+ */
+exports.getArticles = async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || 10);
+    const offset = (page - 1) * perPage;
+
+    const filters = {};
+    if (req.query.status) filters.status = req.query.status;
+    if (req.query.doctorName) filters.doctorName = req.query.doctorName;
+
+    if (req.query.startDate) {
+      const d = new Date(req.query.startDate);
+      if (!isNaN(d)) filters.startDate = req.query.startDate;
+    }
+    if (req.query.endDate) {
+      const d = new Date(req.query.endDate);
+      if (!isNaN(d)) filters.endDate = req.query.endDate;
+    }
+
+    const total = await repo.countArticlesForAdmin(filters);
+    const [rows] = await repo.getArticlesForAdmin(filters, perPage, offset);
+
+    const totalPages = Math.ceil(total / perPage);
+
+    const articles = rows.map(r => {
+      try {
+        r.tags = JSON.parse(r.tags || '[]');
+      } catch (e) {
+        r.tags = [];
+      }
+      return r;
+    });
+
+    res.json({ page, perPage, total, totalPages, articles });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch articles' });
+  }
+};
+
+/**
+ * GET ARTICLE REPORTS
+ */
+exports.getArticleReports = async (req, res) => {
+  try {
+    const articleId = req.params.id;
+    const reports = await repo.getArticleReports(articleId);
+    res.json(reports);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch reports' });
+  }
+};
+
+/**
+ * PATCH ARTICLE - Consolidated endpoint for approve, reject, delist, handle reports
+ * Body: { action: 'APPROVE'|'REJECT'|'DELIST'|'DISCARD_REPORT'|'POST_REPORT', reason?, reportId? }
+ */
+exports.patchArticle = async (req, res) => {
+  try {
+    const articleId = req.params.id;
+    const { action, reason, reportId } = req.body;
+
+    if (!action) {
+      return res.status(400).json({ message: 'action is required' });
+    }
+
+    // Report-related actions
+    if (action === 'DISCARD_REPORT') {
+      if (!reportId) return res.status(400).json({ message: 'reportId required' });
+      await repo.updateArticleReportStatus(reportId, 'DISCARDED', reason);
+      return res.json({ message: 'Report discarded' });
+    }
+
+    if (action === 'POST_REPORT') {
+      if (!reportId) return res.status(400).json({ message: 'reportId required' });
+      // Post report as comment to article (send to writer)
+      // For now, mark as reviewed and optionally send notification
+      await repo.updateArticleReportStatus(reportId, 'REVIEWED', reason);
+      return res.json({ message: 'Report posted to article writer' });
+    }
+
+    // Article-level actions (APPROVE, REJECT, DELIST)
+    if (['APPROVE', 'REJECT', 'DELIST'].includes(action)) {
+      await repo.updateArticleStatus(articleId, action, reason);
+      return res.json({ message: `Article ${action.toLowerCase()}ed` });
+    }
+
+    res.status(400).json({ message: 'Invalid action' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to update article' });
+  }
+};
+
+/**
+ * GET PENDING ARTICLES (legacy)
  */
 exports.getPendingArticles = async (req, res) => {
   try {

@@ -13,6 +13,26 @@ router.post(
 );
 
 /**
+ * LIST ARTICLES (PAGINATED)
+ */
+router.get(
+  '/articles',
+  authenticate,
+  requireRole(['DOCTOR']),
+  doctorController.getArticles
+);
+
+/**
+ * SEARCH ARTICLES (FILTERS + PAGINATION)
+ */
+router.get(
+  '/articles/search',
+  authenticate,
+  requireRole(['DOCTOR']),
+  doctorController.searchArticles
+);
+
+/**
  * UPDATE ARTICLE (ONLY DRAFT)
  */
 router.put(
@@ -33,3 +53,7 @@ router.post(
 );
 
 module.exports = router;
+console.log(typeof authenticate);
+console.log(typeof requireRole);
+console.log(typeof requireRole(['DOCTOR']));
+console.log(typeof doctorController.getArticles);

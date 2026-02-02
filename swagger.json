@@ -12,6 +12,7 @@
     { "bearerAuth": [] }
   ],
   "tags": [
+    { "name": "BMI", "description": "Endpoints for BMI calculations and data" },
     { "name": "Doctor", "description": "Endpoints for Doctors to create, update, and submit articles" },
     { "name": "Admin", "description": "Endpoints for Admin to approve, reject, and delist articles" },
     { "name": "User", "description": "Endpoints for Users to view and report articles" }
@@ -32,16 +33,46 @@
           "title": { "type": "string" },
           "summary": { "type": "string" },
           "content": { "type": "string" },
+          "mainImage": { "type": "string", "description": "URL of the main image" },
+          "images": { "type": "array", "items": { "type": "string" }, "description": "Additional image URLs" },
+          "authorId": { "type": "integer" },
+          "authorName": { "type": "string" },
           "tags": { "type": "array", "items": { "type": "string" } },
           "status": { "type": "string", "enum": ["DRAFT", "PENDING_APPROVAL", "PUBLISHED", "REJECTED", "DELISTED"] }
         }
       },
       "ArticleList": { "type": "array", "items": { "$ref": "#/components/schemas/Article" } },
+      "ArticlePage": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer", "example": 1 },
+          "perPage": { "type": "integer", "example": 10 },
+          "total": { "type": "integer", "example": 42 },
+          "totalPages": { "type": "integer", "example": 5 },
+          "articles": { "$ref": "#/components/schemas/ArticleList" }
+        }
+      },
       "ReportRequest": { "type": "object", "properties": { "notes": { "type": "string" } } },
       "RejectRequest": { "type": "object", "properties": { "reason": { "type": "string" } } }
     }
   },
   "paths": {
+    "/bmi/{userId}": {
+      "get": {
+        "tags": ["BMI"],
+        "summary": "Get BMI data for a user",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "BMI data retrieved successfully",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "boolean" }, "status_code": { "type": "integer" }, "data": { "type": "object" } } } } }
+          },
+          "400": { "description": "Bad request or error processing BMI" },
+          "401": { "description": "Unauthorized - Authorization token required" }
+        }
+      }
+    },
     "/doctor/articles": {
       "post": {
         "tags": ["Doctor"],
@@ -58,7 +89,9 @@
                   "title": { "type": "string", "example": "Benefits of Morning Walk" },
                   "summary": { "type": "string", "example": "Short health benefits of walking daily." },
                   "content": { "type": "string", "example": "Walking daily improves heart health and mental well-being." },
-                  "tags": { "type": "array", "items": { "type": "string" }, "example": ["fitness", "cardiology"] }
+                  "tags": { "type": "array", "items": { "type": "string" }, "example": ["fitness", "cardiology"] },
+                  "mainImage": { "type": "string", "example": "https://cdn.example.com/articles/1/main.jpg" },
+                  "images": { "type": "array", "items": { "type": "string" }, "example": ["https://cdn.example.com/articles/1/1.jpg", "https://cdn.example.com/articles/1/2.jpg"] }
                 }
               }
             }
@@ -72,6 +105,47 @@
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden - Not a doctor" },
           "500": { "description": "Failed to create article" }
+        }
+      }
+      ,
+      "get": {
+        "tags": ["Doctor"],
+        "summary": "List doctor's articles (paginated)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "perPage", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of doctor's articles",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticlePage" } } }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden - Not a doctor" }
+        }
+      }
+    },
+    "/doctor/articles/search": {
+      "get": {
+        "tags": ["Doctor"],
+        "summary": "Search doctor's articles with filters and pagination",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "perPage", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "title", "in": "query", "schema": { "type": "string" }, "description": "Partial article title to search for" },
+          { "name": "status", "in": "query", "schema": { "type": "string" }, "description": "Article status (DRAFT, PENDING_APPROVAL, PUBLISHED, REJECTED, DELISTED)" },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "ISO start date (inclusive)" },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "ISO end date (inclusive)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated search results",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticlePage" } } }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden - Not a doctor" }
         }
       }
     },
@@ -105,12 +179,96 @@
         "responses": { "200": { "description": "Submitted for approval" }, "403": { "description": "Cannot submit article (not owner or wrong status)" } }
       }
     },
+    "/admin/articles": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get all articles (filtered and paginated)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "perPage", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "status", "in": "query", "schema": { "type": "string" }, "description": "Filter by article status" },
+          { "name": "doctorName", "in": "query", "schema": { "type": "string" }, "description": "Filter by doctor name" },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Filter articles from start date" },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Filter articles until end date" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of articles",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticlePage" } } }
+          },
+          "401": { "description": "Unauthorized" },
+          "500": { "description": "Failed to fetch articles" }
+        }
+      }
+    },
     "/admin/articles/pending": {
       "get": {
         "tags": ["Admin"],
         "summary": "View pending articles",
         "security": [{ "bearerAuth": [] }],
         "responses": { "200": { "description": "List of pending articles", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleList" } } } } }
+      }
+    },
+    "/admin/articles/{id}": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Consolidated endpoint to approve, reject, delist articles or handle reports",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                  "action": { "type": "string", "enum": ["APPROVE", "REJECT", "DELIST", "DISCARD_REPORT", "POST_REPORT"], "description": "Action to perform on article or report" },
+                  "reason": { "type": "string", "description": "Reason for rejection or delisting" },
+                  "reportId": { "type": "integer", "description": "Required for report-related actions (DISCARD_REPORT, POST_REPORT)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Action completed successfully" },
+          "400": { "description": "Bad request - invalid action or missing required parameters" },
+          "401": { "description": "Unauthorized" },
+          "500": { "description": "Failed to update article" }
+        }
+      }
+    },
+    "/admin/articles/{id}/reports": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get reports for an article",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": {
+            "description": "List of reports for the article",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer" },
+                      "articleId": { "type": "integer" },
+                      "notes": { "type": "string" },
+                      "status": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "500": { "description": "Failed to fetch reports" }
+        }
       }
     },
     "/admin/articles/{id}/approve": {
@@ -145,10 +303,73 @@
     "/patient/articles": {
       "get": {
         "tags": ["User"],
-        "summary": "View published articles",
+        "summary": "View published articles (paginated)",
         "security": [{ "bearerAuth": [] }],
-        "parameters": [{ "name": "tag", "in": "query", "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Published articles", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticleList" } } } } }
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "perPage", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated published articles",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticlePage" } } }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/patient/articles/search": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Search published articles with filters and pagination",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "perPage", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "title", "in": "query", "schema": { "type": "string" }, "description": "Partial article title to search for" },
+          { "name": "publisherName", "in": "query", "schema": { "type": "string" }, "description": "Partial publisher/author name to search for" },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "ISO start date (inclusive)" },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "ISO end date (inclusive)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated search results",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArticlePage" } } }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/patient/articles/{id}": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Get article details (with images and comments)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": {
+            "description": "Article details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer" },
+                    "title": { "type": "string" },
+                    "mainImage": { "type": "string" },
+                    "images": { "type": "array", "items": { "type": "string" } },
+                    "content": { "type": "string" },
+                    "authorName": { "type": "string" },
+                    "publishedAt": { "type": "string", "format": "date-time" },
+                    "comments": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "integer" }, "author_name": { "type": "string" }, "content": { "type": "string" }, "created_at": { "type": "string" } } } }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Article not found" },
+          "401": { "description": "Unauthorized" }
+        }
       }
     },
     "/patient/articles/{id}/report": {

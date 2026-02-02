@@ -10,6 +10,20 @@ router.get(
   patientController.getPublishedArticles
 );
 
+router.get(
+  '/articles/search',
+  authenticate,
+  requireRole(['USER']),
+  patientController.searchPublishedArticles
+);
+
+router.get(
+  '/articles/:id',
+  authenticate,
+  requireRole(['USER']),
+  patientController.getArticleDetails
+);
+
 router.post(
   '/articles/:id/report',
   authenticate,
