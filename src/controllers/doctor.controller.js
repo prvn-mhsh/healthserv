@@ -1,3 +1,5 @@
+const { logger } = require('@emedihub/observability-backend');
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 const repo = require('../repositories/article.repo');
 // restored controller (ensures correct handler exports)
 
@@ -24,7 +26,7 @@ exports.createArticle = async (req, res) => {
       status: 'DRAFT'
     });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to create article', err);
     res.status(500).json({ message: 'Failed to create article' });
   }
 };
@@ -55,7 +57,7 @@ exports.updateArticle = async (req, res) => {
 
     res.json({ message: 'Draft updated' });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to update article', err);
     res.status(500).json({ message: 'Failed to update article' });
   }
 };
@@ -78,7 +80,7 @@ exports.submitForApproval = async (req, res) => {
 
     res.json({ message: 'Submitted for approval' });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to submit article', err);
     res.status(500).json({ message: 'Failed to submit article' });
   }
 };
@@ -88,28 +90,17 @@ exports.submitForApproval = async (req, res) => {
  */
 exports.getArticles = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || 10);
-    const offset = (page - 1) * perPage;
-
+    const { page, limit, offset } = getPaginationParams(req.query, 10);
     const authorId = req.user.userId;
-    console.log("USER ID:", authorId);
-    console.log("LIMIT:", perPage, typeof perPage);
-  console.log("OFFSET:", offset, typeof offset);
+    logger.info({ userId: authorId }, 'Fetching articles');
 
     const total = await repo.countArticlesByAuthor(authorId);
-    const articles = await repo.getArticlesByAuthor(authorId, perPage, offset);
+    const articles = await repo.getArticlesByAuthor(authorId, limit, offset);
 
-    res.json({
-      page,
-      perPage,
-      total,
-      totalPages: Math.ceil(total / perPage),
-      articles
-    });
+    res.json(formatPaginatedResponse(articles, total, page, limit));
 
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to fetch articles', err);
     res.status(500).json({ message: "Failed to fetch articles" });
   }
 };
@@ -121,10 +112,7 @@ exports.getArticles = async (req, res) => {
  */
 exports.searchArticles = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || 10);
-    const offset = (page - 1) * perPage;
-
+    const { page, limit, offset } = getPaginationParams(req.query, 10);
     const authorId = req.user.userId;
 
     const filters = {};
@@ -142,9 +130,7 @@ exports.searchArticles = async (req, res) => {
     }
 
     const total = await repo.countArticlesByAuthorWithFilters(authorId, filters);
-    const [rows] = await repo.getArticlesByAuthorWithFilters(authorId, filters, perPage, offset);
-
-    const totalPages = Math.ceil(total / perPage);
+    const [rows] = await repo.getArticlesByAuthorWithFilters(authorId, filters, limit, offset);
 
     const articles = rows.map(r => {
       try {
@@ -155,9 +141,9 @@ exports.searchArticles = async (req, res) => {
       return r;
     });
 
-    res.json({ page, perPage, total, totalPages, articles });
+    res.json(formatPaginatedResponse(articles, total, page, limit));
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to search articles', err);
     res.status(500).json({ message: 'Failed to search articles' });
   }
 };

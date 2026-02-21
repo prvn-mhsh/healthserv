@@ -1,4 +1,5 @@
 const db = require('../db/mysql');
+const { logger } = require('@emedihub/observability-backend');
 // Note: LIMIT values must be inlined (not parameterized) for mysql2
 
 exports.createArticle = async data => {
@@ -20,7 +21,7 @@ exports.createArticle = async data => {
     );
     return res.insertId;
   } catch (err) {
-    console.error('DB ERROR createArticle:', err);
+    logger.error('DB ERROR createArticle', err);
     throw err; // Let route catch
   }
 };

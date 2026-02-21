@@ -55,7 +55,7 @@ async function initDB() {
   `);
 
   await connection.end();
-  console.log('DB Initialized: tables ready');
+  logger.info('DB Initialized: tables ready');
 }
 
 module.exports = initDB;

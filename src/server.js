@@ -1,15 +1,16 @@
 const { app } = require('./app');
 const initDB = require('./db/db-init');
+const { logger } = require('@emedihub/observability-backend');
 const PORT = process.env.PORT || 4004;
 
 initDB()
   .then(() => {
-    console.log('DB Initialized: tables ready');
+    logger.info('DB Initialized: tables ready');
     app.listen(PORT, () => {
-      console.log(`healthserv running on port ${PORT}`);
+      logger.info(`healthserv running on port ${PORT}`);
     });
   })
   .catch(err => {
-    console.error('Failed to init DB', err);
+    logger.error('Failed to init DB', err);
     process.exit(1);
   });

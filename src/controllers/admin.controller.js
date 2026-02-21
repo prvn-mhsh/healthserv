@@ -1,5 +1,7 @@
+const { logger } = require('@emedihub/observability-backend');
 const db = require('../db/mysql');
 const repo = require('../repositories/article.repo');
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 
 /**
  * GET ARTICLES (FILTERED + PAGINATED)
@@ -7,9 +9,7 @@ const repo = require('../repositories/article.repo');
  */
 exports.getArticles = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || 10);
-    const offset = (page - 1) * perPage;
+    const { page, limit: perPage, offset } = getPaginationParams(req.query, 10);
 
     const filters = {};
     if (req.query.status) filters.status = req.query.status;
@@ -27,8 +27,6 @@ exports.getArticles = async (req, res) => {
     const total = await repo.countArticlesForAdmin(filters);
     const [rows] = await repo.getArticlesForAdmin(filters, perPage, offset);
 
-    const totalPages = Math.ceil(total / perPage);
-
     const articles = rows.map(r => {
       try {
         r.tags = JSON.parse(r.tags || '[]');
@@ -38,9 +36,9 @@ exports.getArticles = async (req, res) => {
       return r;
     });
 
-    res.json({ page, perPage, total, totalPages, articles });
+    res.json(formatPaginatedResponse(articles, total, page, perPage));
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to fetch articles', err);
     res.status(500).json({ message: 'Failed to fetch articles' });
   }
 };
@@ -54,7 +52,7 @@ exports.getArticleReports = async (req, res) => {
     const reports = await repo.getArticleReports(articleId);
     res.json(reports);
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to fetch reports', err);
     res.status(500).json({ message: 'Failed to fetch reports' });
   }
 };
@@ -95,7 +93,7 @@ exports.patchArticle = async (req, res) => {
 
     res.status(400).json({ message: 'Invalid action' });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to update article', err);
     res.status(500).json({ message: 'Failed to update article' });
   }
 };
@@ -110,7 +108,7 @@ exports.getPendingArticles = async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to fetch pending articles', err);
     res.status(500).json({ message: 'Failed to fetch pending articles' });
   }
 };
@@ -128,7 +126,7 @@ exports.approveArticle = async (req, res) => {
     );
     res.json({ message: 'Article approved' });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to approve article', err);
     res.status(500).json({ message: 'Failed to approve article' });
   }
 };
@@ -146,7 +144,7 @@ exports.rejectArticle = async (req, res) => {
     );
     res.json({ message: 'Article rejected' });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to reject article', err);
     res.status(500).json({ message: 'Failed to reject article' });
   }
 };
@@ -164,7 +162,7 @@ exports.delistArticle = async (req, res) => {
     );
     res.json({ message: 'Article delisted' });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to delist article', err);
     res.status(500).json({ message: 'Failed to delist article' });
   }
 };

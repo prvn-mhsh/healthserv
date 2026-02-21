@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
+const { logger } = require('@emedihub/observability-backend');
 
 const roleMap = {
   1: 'ADMIN'
@@ -39,7 +40,7 @@ exports.authenticate = (req, res, next) => {
       },
       (err, decoded) => {
         if (err) {
-          console.error(err);
+          logger.error('Token verification failed', err);
           return res.status(401).json({ message: 'Invalid token' });
         }
 
@@ -67,7 +68,7 @@ exports.authenticate = (req, res, next) => {
       }
     );
   } catch (err) {
-    console.error(err);
+    logger.error('Authentication error', err);
     return res.status(401).json({ message: 'Invalid token' });
   }
 };

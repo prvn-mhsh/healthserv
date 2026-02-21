@@ -1,3 +1,5 @@
+const { logger } = require('@emedihub/observability-backend');
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/pagination');
 const repo = require('../repositories/article.repo');
 const db = require('../db/mysql');
 
@@ -7,14 +9,10 @@ const db = require('../db/mysql');
  */
 exports.getPublishedArticles = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || 10);
-    const offset = (page - 1) * perPage;
+    const { page, limit, offset } = getPaginationParams(req.query, 10);
 
     const total = await repo.countPublishedArticles();
-    const [rows] = await repo.getPublishedArticlesWithPagination(perPage, offset);
-
-    const totalPages = Math.ceil(total / perPage);
+    const [rows] = await repo.getPublishedArticlesWithPagination(limit, offset);
 
     // Front page: show title and main picture (and id for linking)
     const articles = rows.map(r => ({
@@ -24,9 +22,9 @@ exports.getPublishedArticles = async (req, res) => {
       summary: r.summary || null
     }));
 
-    res.json({ page, perPage, total, totalPages, articles });
+    res.json(formatPaginatedResponse(articles, total, page, limit));
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to fetch published articles', err);
     res.status(500).json({ message: 'Failed to fetch published articles' });
   }
 };
@@ -68,7 +66,7 @@ exports.getArticleDetails = async (req, res) => {
       comments
     });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to fetch article details', err);
     res.status(500).json({ message: 'Failed to fetch article details' });
   }
 };
@@ -86,7 +84,7 @@ exports.reportArticle = async (req, res) => {
 
     res.status(201).json({ message: 'Reported' });
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to report article', err);
     res.status(500).json({ message: 'Failed to report article' });
   }
 };
@@ -97,9 +95,7 @@ exports.reportArticle = async (req, res) => {
  */
 exports.searchPublishedArticles = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || 10);
-    const offset = (page - 1) * perPage;
+    const { page, limit, offset } = getPaginationParams(req.query, 10);
 
     const filters = {};
     if (req.query.title) filters.title = req.query.title;
@@ -116,9 +112,7 @@ exports.searchPublishedArticles = async (req, res) => {
     }
 
     const total = await repo.countPublishedArticlesWithFilters(filters);
-    const [rows] = await repo.searchPublishedArticles(filters, perPage, offset);
-
-    const totalPages = Math.ceil(total / perPage);
+    const [rows] = await repo.searchPublishedArticles(filters, limit, offset);
 
     const articles = rows.map(r => ({
       id: r.id,
@@ -127,9 +121,9 @@ exports.searchPublishedArticles = async (req, res) => {
       summary: r.summary || null
     }));
 
-    res.json({ page, perPage, total, totalPages, articles });
+    res.json(formatPaginatedResponse(articles, total, page, limit));
   } catch (err) {
-    console.error(err);
+    logger.error({ path: req.originalUrl }, 'Failed to search articles', err);
     res.status(500).json({ message: 'Failed to search articles' });
   }
 };
